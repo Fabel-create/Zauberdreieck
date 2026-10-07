@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Zauberdreieck 1–9</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#fff;color:#222;text-align:center}
+main{max-width:760px;margin:auto;padding:18px}
+h1{margin:2px 0 6px;font-size:30px}
+p{margin:4px 0 16px;font-size:17px}
+#board{position:relative;width:min(94vw,680px);aspect-ratio:1.12;margin:8px auto;background:white;touch-action:none}
+#board svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.slot{position:absolute;width:15.5%;aspect-ratio:1;border:4px solid #222;border-radius:50%;transform:translate(-50%,-50%);background:#fff;z-index:1}
+.piece{position:absolute;width:13.2%;aspect-ratio:1;border-radius:50%;background:#fff;border:2px solid #555;display:flex;align-items:center;justify-content:center;font-size:clamp(24px,5vw,34px);font-weight:bold;transform:translate(-50%,-50%);box-shadow:0 2px 6px #0002;touch-action:none;user-select:none;z-index:5;cursor:grab}
+.piece.drag{cursor:grabbing;box-shadow:0 8px 18px #0003;transform:translate(-50%,-50%) scale(1.08);z-index:20}
+.tray{display:flex;justify-content:center;gap:9px;flex-wrap:wrap;margin:14px auto 8px;max-width:620px;min-height:62px}
+.tray .piece{position:relative;transform:none;width:54px;height:54px;font-size:25px}
+.tray .piece.drag{transform:scale(1.08)}
+#result{font-size:18px;font-weight:bold;padding:11px 14px;border-radius:12px;margin:12px auto;max-width:620px;background:#f1f1f1}
+.ok{background:#dff5e3!important;color:#17652b}.bad{background:#ffe3e3!important;color:#9b2222}
+button{font-size:16px;padding:10px 16px;border:0;border-radius:10px;background:#333;color:#fff;margin:4px}
+.small{font-size:14px;color:#666}
+</style>
+</head>
+<body>
+<main>
+
+
+<div id="board">
+<svg viewBox="0 0 100 100" preserveAspectRatio="none">
+  <path d="M51 12.5 L30 49.8 L11.6 85.8
+           M51 12.5 L71.2 49.8 L90 85.8
+           M11.6 85.8 L90 85.8"
+        fill="none" stroke="#222" stroke-width="0.65"/>
+</svg>
+
+<div class="slot" data-slot="0" style="left:51%;top:12.5%"></div>
+<div class="slot" data-slot="1" style="left:11.6%;top:85.8%"></div>
+<div class="slot" data-slot="2" style="left:90%;top:85.8%"></div>
+<div class="slot" data-slot="3" style="left:30%;top:49.8%"></div>
+<div class="slot" data-slot="4" style="left:71.2%;top:49.8%"></div>
+<div class="slot" data-slot="5" style="left:51%;top:85.8%"></div>
+</div>
+
+<div class="tray" id="tray" aria-label="Zahlen 1 bis 9"></div>
+<div id="magicNumber" style="font-size:20px;font-weight:bold;padding:12px 14px;border-radius:12px;margin:12px auto 8px;max-width:620px;background:#f5f5f5;">Zauberzahl: –</div>
+<div id="result"></div>
+
+
+<script>
+const positions=[
+ [51,12.5],  // oben
+ [11.6,85.8], // unten links
+ [90,85.8],   // unten rechts
+ [30,49.8],   // links Mitte
+ [71.2,49.8], // rechts Mitte
+ [51,85.8]    // unten Mitte
+];
+let numbers=[1,2,3,4,5,6,7,8,9];
+let placed=[null,null,null,null,null,null];
+let dragging=null;
+
+function render(){
+ document.querySelectorAll('.piece').forEach(e=>e.remove());
+
+ numbers.forEach((num,i)=>{
+   if(!placed.includes(i)) createPiece(num,i,false);
+ });
+
+ placed.forEach((idx,slot)=>{
+   if(idx!==null) createPiece(numbers[idx],idx,true,slot);
+ });
+ check();
+}
+
+function createPiece(num,index,onBoard,slot){
+ const p=document.createElement('div');
+ p.className='piece';
+ p.textContent=num;
+ p.dataset.index=index;
+
+ if(onBoard){
+   p.style.left=positions[slot][0]+'%';
+   p.style.top=positions[slot][1]+'%';
+   p.dataset.slot=slot;
+   document.getElementById('board').appendChild(p);
+ }else{
+   document.getElementById('tray').appendChild(p);
+ }
+ p.addEventListener('pointerdown',startDrag);
+}
+
+function startDrag(e){
+ e.preventDefault();
+ const p=e.currentTarget;
+ dragging={
+   p:p,
+   index:Number(p.dataset.index),
+   from:p.dataset.slot===undefined?null:Number(p.dataset.slot)
+ };
+ p.setPointerCapture(e.pointerId);
+ p.classList.add('drag');
+ p.addEventListener('pointermove',moveDrag);
+ p.addEventListener('pointerup',endDrag,{once:true});
+ p.addEventListener('pointercancel',cancelDrag,{once:true});
+}
+
+function moveDrag(e){
+ const p=dragging.p;
+ const board=document.getElementById('board');
+ const r=board.getBoundingClientRect();
+
+ if(!p.parentElement.isSameNode(board)){
+   board.appendChild(p);
+   p.style.position='absolute';
+ }
+
+ p.style.left=((e.clientX-r.left)/r.width*100)+'%';
+ p.style.top=((e.clientY-r.top)/r.height*100)+'%';
+}
+
+function endDrag(e){
+ const p=dragging.p;
+ const board=document.getElementById('board');
+ const r=board.getBoundingClientRect();
+ const x=(e.clientX-r.left)/r.width*100;
+ const y=(e.clientY-r.top)/r.height*100;
+
+ let nearest=-1,best=999;
+ positions.forEach((pos,i)=>{
+   const d=Math.hypot(x-pos[0],y-pos[1]);
+   if(d<best){best=d;nearest=i}
+ });
+
+ const oldFrom=dragging.from;
+ const index=dragging.index;
+
+ if(best<11){
+   const old=placed[nearest];
+   placed[nearest]=index;
+
+   // Ist das Ziel bereits belegt, wird automatisch getauscht.
+   if(oldFrom!==null && oldFrom!==nearest){
+     placed[oldFrom]=old;
+   }
+ }else{
+   // Aus dem Dreieck herausziehen: Feld wird frei.
+   if(oldFrom!==null) placed[oldFrom]=null;
+ }
+
+ cleanup();
+ render();
+}
+
+function cancelDrag(){
+ if(!dragging)return;
+ const oldFrom=dragging.from;
+ if(oldFrom!==null) placed[oldFrom]=dragging.index;
+ cleanup();
+ render();
+}
+
+function cleanup(){
+ if(!dragging)return;
+ dragging.p.classList.remove('drag');
+ dragging.p.style.zIndex='';
+ dragging=null;
+}
+
+function check(){
+ const result=document.getElementById('result');
+ const magic=document.getElementById('magicNumber');
+
+ if(placed.some(x=>x===null)){
+   magic.textContent='Zauberzahl: –';
+   result.className='';
+   result.textContent='';
+   return;
+ }
+
+ const n=placed.map(i=>numbers[i]);
+
+ const sums=[
+   n[0]+n[3]+n[1],
+   n[0]+n[4]+n[2],
+   n[1]+n[5]+n[2]
+ ];
+
+ if(sums[0]===sums[1] && sums[1]===sums[2]){
+   magic.textContent='Zauberzahl: '+sums[0];
+   result.className='ok';
+   result.textContent='✨ Richtig! Alle drei Seiten haben die gleiche Summe.';
+ }else{
+   magic.textContent='Zauberzahl: –';
+   result.className='bad';
+   result.textContent='Die Seitensummen sind: '+sums.join('   |   ');
+ }
+}
+
+render();
+</script>
+</main>
+</body>
+</html>
